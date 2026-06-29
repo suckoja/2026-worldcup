@@ -98,9 +98,21 @@ def webhook():
             text = msg.get("text", "").strip()
             message_id = msg.get("id")
 
+            # Fetch display name once for both commands and predictions
+            display_name = None
+            group_id = source.get("groupId")
+            if group_id and user_id:
+                try:
+                    api = _line_api(config)
+                    profile = api.get_group_member_profile(group_id, user_id)
+                    display_name = profile.display_name
+                except Exception:
+                    pass
+
             if text.startswith("/"):
                 response = commands.handle_command(
-                    text, user_id, conn, config, players, rules, teams
+                    text, user_id, conn, config, players, rules, teams,
+                    display_name=display_name,
                 )
                 if response and reply_token:
                     reply(reply_token, response, config)
@@ -110,17 +122,6 @@ def webhook():
                     continue
 
                 submitted_at = datetime.now(ICT).strftime("%Y-%m-%dT%H:%M:%S")
-
-                # Resolve sender display name via LINE profile API
-                display_name = None
-                group_id = source.get("groupId")
-                if group_id and user_id:
-                    try:
-                        api = _line_api(config)
-                        profile = api.get_group_member_profile(group_id, user_id)
-                        display_name = profile.display_name
-                    except Exception:
-                        pass
 
                 if not display_name:
                     continue

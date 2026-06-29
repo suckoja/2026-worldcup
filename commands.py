@@ -67,13 +67,12 @@ def _result_player_text(conn: sqlite3.Connection, player_id: int, display_name: 
     return "\n".join(lines)
 
 
-def _result_today_text(conn: sqlite3.Connection) -> str:
-    today = db.today_ict()
-    rows = db.get_today_predictions(conn, today)
+def _result_date_text(conn: sqlite3.Connection, date_str: str) -> str:
+    rows = db.get_today_predictions(conn, date_str)
     if not rows:
-        return "ไม่มีการแข่งขันวันนี้"
+        return f"ไม่มีการแข่งขันวันที่ {date_str}"
 
-    d_display = datetime.strptime(today, "%Y-%m-%d").strftime("%d/%m/%Y")
+    d_display = datetime.strptime(date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
     lines = [f"📅 ผลการทาย {d_display}", ""]
     current_match: Optional[tuple] = None
 
@@ -96,12 +95,18 @@ def _result_today_text(conn: sqlite3.Connection) -> str:
     return "\n".join(lines)
 
 
+def _result_today_text(conn: sqlite3.Connection) -> str:
+    return _result_date_text(conn, db.today_ict())
+
+
 def _help_text() -> str:
     return (
         "คำสั่งที่ใช้ได้:\n"
         "/stand หรือ /table — ตารางคะแนน\n"
+        "/result me — ประวัติการทายของตัวเอง\n"
         "/result [ชื่อ] — ประวัติการทายของผู้เล่น\n"
         "/result today — การทายวันนี้ทุกคน\n"
+        "/result YYYY-MM-DD — การทายวันที่ระบุ\n"
         "/sync — ดึงผลการแข่งขันล่าสุด (admin)\n"
         "/seed [ชื่อ] [YYYY-MM-DD] [ทีมเหย้า] [H-A] [ทีมเยือน] — บันทึกย้อนหลัง (admin)\n"
         "/help — แสดงคำสั่ง"
@@ -115,7 +120,8 @@ def handle_command(
     config: dict,
     players: list,
     rules: dict,
-    teams: dict
+    teams: dict,
+    display_name: Optional[str] = None,
 ) -> Optional[str]:
     parts = text.strip().split()
     if not parts:
@@ -131,6 +137,22 @@ def handle_command(
         arg = " ".join(parts[1:])
         if arg.lower() == "today":
             return _result_today_text(conn)
+        if arg.lower() == "me":
+            if not display_name:
+                return "❌ ระบุชื่อไม่ได้ ลองพิมพ์ /result [ชื่อ] แทน"
+            name, candidates = db.resolve_player(display_name, players)
+            if name:
+                player_id = db.get_player_id(conn, name)
+                return _result_player_text(conn, player_id, name)
+            all_names = "\n".join(f"- {p['line_display_name']}" for p in players)
+            return f"❌ ไม่พบชื่อ '{display_name}' ในระบบ\nผู้เล่นทั้งหมด:\n{all_names}"
+        # YYYY-MM-DD date lookup
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', arg):
+            try:
+                datetime.strptime(arg, "%Y-%m-%d")
+            except ValueError:
+                return f"❌ วันที่ไม่ถูกต้อง '{arg}'"
+            return _result_date_text(conn, arg)
         name, candidates = db.resolve_player(arg, players)
         if name:
             player_id = db.get_player_id(conn, name)
