@@ -108,6 +108,7 @@ def _help_text() -> str:
         "/result today — การทายวันนี้ทุกคน\n"
         "/result YYYY-MM-DD — การทายวันที่ระบุ\n"
         "/sync — ดึงผลการแข่งขันล่าสุด (admin)\n"
+        "/setscore [ทีมเหย้า] [H-A] [ทีมเยือน] — ใส่ผล 90 นาที สำหรับนัดต่อเวลา/จุดโทษ (admin)\n"
         "/seed [ชื่อ] [YYYY-MM-DD] [ทีมเหย้า] [H-A] [ทีมเยือน] — บันทึกย้อนหลัง (admin)\n"
         "/help — แสดงคำสั่ง"
     )
@@ -174,17 +175,21 @@ def handle_command(
         if not _is_admin(user_id, config):
             return None
         try:
-            updated = fetcher.sync_results(conn, config["FOOTBALL_DATA_API_KEY"])
-            scoring.recalculate_all(conn, rules)
-            if not updated:
+            updated, needs_manual = fetcher.sync_results(conn, config["FOOTBALL_DATA_API_KEY"])
+            if updated:
+                scoring.recalculate_all(conn, rules)
+            lines = []
+            if updated:
+                lines.append(f"🔄 อัพเดท {len(updated)} นัด:")
+                lines.extend(f"✅ {r}" for r in updated)
+                lines.append(f"\n📊 คำนวณคะแนนเสร็จแล้ว")
+            if needs_manual:
+                lines.append(f"\n⚠️ ต้องใส่คะแนน 90 นาที ด้วย /setscore:")
+                lines.extend(f"  • {m}" for m in needs_manual)
+            if not lines:
                 return "ไม่มีผลใหม่"
-            result_lines = "\n".join(f"✅ {r}" for r in updated)
-            return (
-                f"🔄 กำลังดึงผลการแข่งขัน...\n\n"
-                f"{result_lines}\n\n"
-                f"📊 คำนวณคะแนนเสร็จแล้ว — อัพเดท {len(updated)} นัด\n"
-                f"พิมพ์ /stand เพื่อดูตาราง"
-            )
+            lines.append("\nพิมพ์ /stand เพื่อดูตาราง")
+            return "\n".join(lines)
         except Exception as e:
             return f"❌ ดึงข้อมูลไม่ได้ ลองใหม่ภายหลัง ({e})"
 
@@ -236,6 +241,48 @@ def handle_command(
             f"นัด: {home_th} vs {away_th} ({d})\n"
             f"ทาย: {home_pred}-{away_pred}\n"
             f"(เขียนทับข้อมูลเดิม ถ้ามี)"
+        )
+
+    if cmd == "/setscore":
+        if not _is_admin(user_id, config):
+            return None
+        # /setscore [home] [H-A] [away]
+        if len(parts) < 4:
+            return "❌ รูปแบบ: /setscore [ทีมเหย้า] [H-A] [ทีมเยือน] เช่น /setscore Brazil 1-1 France"
+        score_arg = parts[-2]
+        home_arg = " ".join(parts[1:-2]).strip('"')
+        away_arg = parts[-1].strip('"')
+
+        score_m = re.match(r'(\d+)[:\-–](\d+)', score_arg)
+        if not score_m:
+            return f"❌ สกอร์ไม่ถูกต้อง '{score_arg}' ใช้รูปแบบ H-A เช่น 1-1"
+
+        home_score, away_score = int(score_m.group(1)), int(score_m.group(2))
+
+        home_en = teams.get(home_arg) or (home_arg if home_arg in teams.values() else None)
+        away_en = teams.get(away_arg) or (away_arg if away_arg in teams.values() else None)
+        if not home_en:
+            return f"❌ ไม่พบทีม '{home_arg}'"
+        if not away_en:
+            return f"❌ ไม่พบทีม '{away_arg}'"
+
+        match_row = db.get_match_by_teams(conn, home_en, away_en)
+        if not match_row:
+            return f"❌ ไม่พบนัด {home_en} vs {away_en}"
+
+        conn.execute(
+            "UPDATE matches SET home_score = ?, away_score = ? WHERE id = ?",
+            (home_score, away_score, match_row["id"])
+        )
+        conn.commit()
+        scoring.recalculate_all(conn, rules)
+
+        home_th = match_row["home_team_th"] or home_en
+        away_th = match_row["away_team_th"] or away_en
+        return (
+            f"✅ บันทึกผล 90 นาทีแล้ว\n"
+            f"{home_th} vs {away_th}: {home_score}-{away_score}\n"
+            f"📊 คำนวณคะแนนเสร็จแล้ว — พิมพ์ /stand เพื่อดูตาราง"
         )
 
     return None

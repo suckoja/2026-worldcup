@@ -26,7 +26,7 @@ LINE Group
     ▼
 Flask app (bot.py)
     ├── Message Parser     — strict regex, extracts predictions
-    ├── Command Handler    — /stand /result /seed /sync /help
+    ├── Command Handler    — /stand /result /seed /sync /setscore /help
     ├── Scoring Engine     — rules loaded from scoring_rules.json
     ├── Result Fetcher     — football-data.org API
     ├── SQLite DB          — predictions, players, matches
@@ -328,14 +328,41 @@ Non-admin → silently ignored.
 
 ### `/sync`
 Admin-only. Fetches latest results from football-data.org, recalculates all points.
+
+- Matches with `duration == REGULAR`: store 90-min score, recalculate points ✅
+- Matches with `duration == EXTRA_TIME` or `PENALTY_SHOOTOUT`: skip (API `fullTime` includes ET goals, not the 90-min score). Admin notified to run `/setscore`.
+
 ```
-🔄 กำลังดึงผลการแข่งขัน...
+🔄 อัพเดท 3 นัด:
 ✅ บราซิล 2-1 ญี่ปุ่น
 ✅ เยอรมัน 2-0 ปารากวัย
 ✅ เนเธอร์แลนด์ 1-1 โมร็อกโก
-📊 คำนวณคะแนนเสร็จแล้ว — อัพเดท 3 นัด, 17 ผู้เล่น
+📊 คำนวณคะแนนเสร็จแล้ว
+
+⚠️ ต้องใส่คะแนน 90 นาที ด้วย /setscore:
+  • France vs Argentina
+
 พิมพ์ /stand เพื่อดูตาราง
 ```
+
+### `/setscore [home] [H-A] [away]`
+Admin-only. Manually sets the 90-minute score for a match that went to extra time or penalties (since `/sync` cannot retrieve the correct 90-min score from the API for those).
+
+Overwrites any existing score in DB. Triggers full `recalculate_all`.
+
+```
+/setscore France 1-1 Argentina
+```
+
+Reply:
+```
+✅ บันทึกผล 90 นาทีแล้ว
+ฝรั่งเศส vs อาร์เจนติน่า: 1-1
+📊 คำนวณคะแนนเสร็จแล้ว — พิมพ์ /stand เพื่อดูตาราง
+```
+
+Team name resolution: same as `/seed` (Thai or English from `teams.json`).
+Non-admin → silently ignored.
 
 ### `/help`
 Lists all commands with one-line Thai description. Includes `/result me` and `/result YYYY-MM-DD`.
@@ -363,8 +390,10 @@ Recalculated on every `/sync`. Stored in `predictions.points`.
 - API: football-data.org free tier
 - Triggered by `/sync` only — no background polling
 - Maps API English team names → DB team names
-- Updates `home_score`, `away_score` in `matches`
+- Updates `home_score`, `away_score` in `matches` for `REGULAR` duration matches only
+- Skips ET/PKS matches — `fullTime` from API includes extra-time goals, not 90-min score
 - Recalculates all `predictions.points` for completed matches
+- ET/PKS matches flagged in `/sync` reply → admin uses `/setscore` to set correct 90-min score
 
 ---
 

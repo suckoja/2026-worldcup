@@ -54,6 +54,7 @@ def sync_results(conn: sqlite3.Connection, api_key: str) -> list:
     data = resp.json()
 
     updated = []
+    needs_manual = []
     for match in data.get("matches", []):
         home_api = match["homeTeam"]["name"]
         away_api = match["awayTeam"]["name"]
@@ -63,6 +64,12 @@ def sync_results(conn: sqlite3.Connection, api_key: str) -> list:
             continue
 
         score = match.get("score", {})
+        duration = score.get("duration", "REGULAR")
+
+        if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT"):
+            needs_manual.append(f"{home_en} vs {away_en}")
+            continue
+
         ft = score.get("fullTime", {})
         home_score = ft.get("home")
         away_score = ft.get("away")
@@ -79,4 +86,4 @@ def sync_results(conn: sqlite3.Connection, api_key: str) -> list:
             updated.append(f"{home_en} {home_score}-{away_score} {away_en}")
 
     conn.commit()
-    return updated
+    return updated, needs_manual
