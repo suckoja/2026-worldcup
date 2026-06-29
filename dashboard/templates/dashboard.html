@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Cup 2026 — Standings</title>
+  <style>
+    body { font-family: sans-serif; max-width: 960px; margin: 0 auto; padding: 1rem; background: #111; color: #eee; }
+    h1, h2 { color: #f90; }
+    h3 { color: #adf; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+    th, td { padding: 0.4rem 0.75rem; border: 1px solid #333; text-align: left; }
+    th { background: #222; color: #f90; }
+    tr:nth-child(even) { background: #1a1a1a; }
+    .pts { font-weight: bold; color: #f90; }
+    .pending { color: #888; }
+    details { margin-bottom: 0.5rem; }
+    details summary { cursor: pointer; padding: 0.5rem 0.75rem; background: #222; border: 1px solid #333; }
+    details[open] summary { background: #2a2a2a; }
+    .result-ok { color: #4f4; }
+    .result-pending { color: #888; }
+    nav { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    nav a { color: #f90; text-decoration: none; padding: 0.4rem 0.8rem; border: 1px solid #f90; border-radius: 4px; }
+    nav a:hover { background: #f90; color: #111; }
+  </style>
+</head>
+<body>
+  <h1>🏆 World Cup 2026</h1>
+
+  <nav>
+    <a href="#standings">ตารางคะแนน</a>
+    <a href="#schedule">ตารางแข่งขัน</a>
+    <a href="#today">วันนี้</a>
+    <a href="#players">ผู้เล่น</a>
+  </nav>
+
+  <!-- STANDINGS -->
+  <h2 id="standings">ตารางคะแนน</h2>
+  <table>
+    <tr><th>#</th><th>ผู้เล่น</th><th>แต้ม</th><th>นัด</th></tr>
+    {% set ns = namespace(rank=1, prev_pts=-999) %}
+    {% for row in standings %}
+      {% if row.total_points != ns.prev_pts %}
+        {% set ns.rank = loop.index %}
+        {% set ns.prev_pts = row.total_points %}
+      {% endif %}
+      <tr>
+        <td>{{ ns.rank }}</td>
+        <td>{{ row.line_display_name }}</td>
+        <td class="pts">{{ row.total_points }}</td>
+        <td>{{ row.matches_played }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+
+  <!-- SCHEDULE -->
+  <h2 id="schedule">ตารางแข่งขัน</h2>
+  <table>
+    <tr><th>วันที่ (ICT)</th><th>คู่แข่ง</th><th>ผล</th><th>ปิดรับ</th></tr>
+    {% for m in matches %}
+    <tr>
+      <td>{{ m.match_date_ict }}</td>
+      <td>{{ m.home_team_th or m.home_team_en }} vs {{ m.away_team_th or m.away_team_en }}</td>
+      <td>
+        {% if m.home_score is not none %}
+          <span class="result-ok">{{ m.home_score }}-{{ m.away_score }}</span>
+        {% else %}
+          <span class="result-pending">⏳</span>
+        {% endif %}
+      </td>
+      <td>{{ m.deadline_ict[:10] }} 15:00</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <!-- TODAY -->
+  <h2 id="today">วันนี้ ({{ today }})</h2>
+  {% set current_match = namespace(key="") %}
+  {% set opened = namespace(table=false) %}
+  {% for row in today_rows %}
+    {% set match_key = row.home_team_en ~ "|" ~ row.away_team_en %}
+    {% if match_key != current_match.key %}
+      {% if opened.table %}</table>{% endif %}
+      {% set current_match.key = match_key %}
+      {% set opened.table = true %}
+      <h3>⚽ {{ row.home_team_th or row.home_team_en }} vs {{ row.away_team_th or row.away_team_en }}
+        {% if row.home_score is not none %}
+          — <span class="result-ok">{{ row.home_score }}-{{ row.away_score }}</span>
+        {% else %}
+          — <span class="result-pending">⏳ รอผล</span>
+        {% endif %}
+      </h3>
+      <table><tr><th>ผู้เล่น</th><th>ทาย</th><th>แต้ม</th></tr>
+    {% endif %}
+    {% if row.line_display_name %}
+    <tr>
+      <td>{{ row.line_display_name }}</td>
+      <td>{{ row.home_pred }}-{{ row.away_pred }}</td>
+      <td>{% if row.points is not none %}<span class="pts">{{ row.points }}</span>{% else %}<span class="pending">—</span>{% endif %}</td>
+    </tr>
+    {% endif %}
+  {% endfor %}
+  {% if opened.table %}</table>{% endif %}
+  {% if not today_rows %}<p class="pending">ยังไม่มีการแข่งขันหรือการทายวันนี้</p>{% endif %}
+
+  <!-- PLAYER HISTORY -->
+  <h2 id="players">ประวัติผู้เล่น</h2>
+  {% for name, history in player_histories.items() %}
+  <details>
+    <summary>{{ name }}</summary>
+    {% if history %}
+    <table>
+      <tr><th>วันที่</th><th>คู่แข่ง</th><th>ทาย</th><th>จริง</th><th>แต้ม</th></tr>
+      {% for row in history %}
+      <tr>
+        <td>{{ row.match_date_ict }}</td>
+        <td>{{ row.home_team_th or row.home_team_en }} vs {{ row.away_team_th or row.away_team_en }}</td>
+        <td>{{ row.home_pred }}-{{ row.away_pred }}</td>
+        <td>
+          {% if row.home_score is not none %}
+            <span class="result-ok">{{ row.home_score }}-{{ row.away_score }}</span>
+          {% else %}
+            <span class="result-pending">⏳</span>
+          {% endif %}
+        </td>
+        <td>{% if row.points is not none %}<span class="pts">{{ row.points }}</span>{% else %}<span class="pending">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="pending">ยังไม่มีการทาย</p>{% endif %}
+  </details>
+  {% endfor %}
+</body>
+</html>
