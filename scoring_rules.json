@@ -1,0 +1,7 @@
+{
+  "32":    {"exact": 2, "correct": 1, "wrong": 0},
+  "16":    {"exact": 4, "correct": 2, "wrong": 0},
+  "8":     {"exact": 6, "correct": 3, "wrong": 0},
+  "4":     {"exact": 8, "correct": 4, "wrong": 0},
+  "final": {"exact": 8, "correct": 4, "wrong": 0}
+}
