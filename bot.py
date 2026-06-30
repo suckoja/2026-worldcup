@@ -113,7 +113,13 @@ def webhook():
                 response = commands.handle_command(
                     text, user_id, conn, config, players, rules, teams,
                     display_name=display_name,
+                    group_id=group_id,
                 )
+                if response == "__SETGROUP__":
+                    config["LINE_GROUP_ID"] = group_id
+                    with open("config.json", "w", encoding="utf-8") as f:
+                        json.dump(config, f, ensure_ascii=False, indent=2)
+                    response = "✅ บันทึก group แล้ว"
                 if response and reply_token:
                     reply(reply_token, response, config)
             else:

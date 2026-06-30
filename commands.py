@@ -110,6 +110,8 @@ def _help_text() -> str:
         "/sync — ดึงผลการแข่งขันล่าสุด (admin)\n"
         "/setscore [ทีมเหย้า] [H-A] [ทีมเยือน] — ใส่ผล 90 นาที สำหรับนัดต่อเวลา/จุดโทษ (admin)\n"
         "/seed [ชื่อ] [YYYY-MM-DD] [ทีมเหย้า] [H-A] [ทีมเยือน] — บันทึกย้อนหลัง (admin)\n"
+        "/setgroup — บันทึก group ID สำหรับส่ง template (admin, ใช้ในกลุ่ม)\n"
+        "/sendtemplate — ส่ง template วันนี้ทันที (admin)\n"
         "/help — แสดงคำสั่ง"
     )
 
@@ -123,6 +125,7 @@ def handle_command(
     rules: dict,
     teams: dict,
     display_name: Optional[str] = None,
+    group_id: Optional[str] = None,
 ) -> Optional[str]:
     parts = text.strip().split()
     if not parts:
@@ -284,5 +287,12 @@ def handle_command(
             f"{home_th} vs {away_th}: {home_score}-{away_score}\n"
             f"📊 คำนวณคะแนนเสร็จแล้ว — พิมพ์ /stand เพื่อดูตาราง"
         )
+
+    if cmd == "/setgroup":
+        if not _is_admin(user_id, config):
+            return None
+        if not group_id:
+            return "❌ ใช้คำสั่งนี้ในกลุ่มเท่านั้น"
+        return "__SETGROUP__"
 
     return None
