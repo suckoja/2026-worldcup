@@ -8,6 +8,7 @@ from typing import Optional
 import db
 import scoring
 import fetcher
+import template as tmpl
 
 ICT = timezone(timedelta(hours=7))
 
@@ -294,5 +295,20 @@ def handle_command(
         if not group_id:
             return "❌ ใช้คำสั่งนี้ในกลุ่มเท่านั้น"
         return "__SETGROUP__"
+
+    if cmd == "/sendtemplate":
+        if not _is_admin(user_id, config):
+            return None
+        if not config.get("LINE_GROUP_ID"):
+            return "❌ ยังไม่ได้ตั้ง group — ใช้ /setgroup ในกลุ่มก่อน"
+        today = db.today_ict()
+        rows = conn.execute(
+            "SELECT home_team_th, away_team_th, home_team_en, away_team_en, kickoff_utc "
+            "FROM matches WHERE match_date_ict = ? ORDER BY kickoff_utc",
+            (today,)
+        ).fetchall()
+        if not rows:
+            return "ไม่มีแมตช์วันนี้"
+        return "__SENDTEMPLATE__"
 
     return None
