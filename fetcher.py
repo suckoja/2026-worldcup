@@ -39,6 +39,8 @@ API_TEAM_MAP = {
     "Cape Verde": "Cape Verde",
     "Colombia": "Colombia",
     "Ghana": "Ghana",
+    "Senegal": "Senegal",
+    "Sénégal": "Senegal",
 }
 
 
