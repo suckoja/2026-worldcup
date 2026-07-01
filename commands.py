@@ -112,7 +112,7 @@ def _help_text() -> str:
         "/setscore [ทีมเหย้า] [H-A] [ทีมเยือน] — ใส่ผล 90 นาที สำหรับนัดต่อเวลา/จุดโทษ (admin)\n"
         "/seed [ชื่อ] [YYYY-MM-DD] [ทีมเหย้า] [H-A] [ทีมเยือน] — บันทึกย้อนหลัง (admin)\n"
         "/setgroup — บันทึก group ID สำหรับส่ง template (admin, ใช้ในกลุ่ม)\n"
-        "/sendtemplate — ส่ง template วันนี้ทันที (admin)\n"
+        "/template [YYYY-MM-DD] — ดู template (admin, default: วันนี้)\n"
         "/help — แสดงคำสั่ง"
     )
 
@@ -296,19 +296,17 @@ def handle_command(
             return "❌ ใช้คำสั่งนี้ในกลุ่มเท่านั้น"
         return "__SETGROUP__"
 
-    if cmd == "/sendtemplate":
+    if cmd == "/template":
         if not _is_admin(user_id, config):
             return None
-        if not config.get("LINE_GROUP_ID"):
-            return "❌ ยังไม่ได้ตั้ง group — ใช้ /setgroup ในกลุ่มก่อน"
-        today = db.today_ict()
+        date_arg = parts[1] if len(parts) > 1 and re.match(r'\d{4}-\d{2}-\d{2}', parts[1]) else db.today_ict()
         rows = conn.execute(
             "SELECT home_team_th, away_team_th, home_team_en, away_team_en, kickoff_utc "
             "FROM matches WHERE match_date_ict = ? ORDER BY kickoff_utc",
-            (today,)
+            (date_arg,)
         ).fetchall()
         if not rows:
-            return "ไม่มีแมตช์วันนี้"
-        return "__SENDTEMPLATE__"
+            return f"ไม่มีแมตช์วันที่ {date_arg}"
+        return f"__SENDTEMPLATE__:{date_arg}"
 
     return None

@@ -121,12 +121,12 @@ def webhook():
                     with open("config.json", "w", encoding="utf-8") as f:
                         json.dump(config, f, ensure_ascii=False, indent=2)
                     response = "✅ บันทึก group แล้ว"
-                elif response == "__SENDTEMPLATE__":
-                    today = db.today_ict()
+                elif response and response.startswith("__SENDTEMPLATE__:"):
+                    date_arg = response.split(":", 1)[1]
                     rows = conn.execute(
                         "SELECT home_team_th, away_team_th, home_team_en, away_team_en, kickoff_utc "
                         "FROM matches WHERE match_date_ict = ? ORDER BY kickoff_utc",
-                        (today,)
+                        (date_arg,)
                     ).fetchall()
                     msg = tmpl.build_template(rows)
                     response = msg
