@@ -46,20 +46,19 @@ Standalone script in project root:
 
 No new pip dependencies. Idempotent per run (no DB writes). Do not configure cron to retry on failure — LINE delivers duplicate messages if run twice.
 
-## Section 4: `/sendtemplate` Command (Manual Test)
+## Section 4: `/template` Command (Manual Preview)
 
 - Admin-only: reject if `user_id != config["ADMIN_LINE_USER_ID"]`
-- Runs same logic as `send_template.py` inline
-- Requires `LINE_GROUP_ID` already set (via `/setgroup`)
-- If no matches today → reply `ไม่มีแมตช์วันนี้`
-- On success → pushes template to group, replies `✅ ส่ง template แล้ว`
-- Allows admin to verify format any time without waiting for cron
+- Usage: `/template` (today) or `/template YYYY-MM-DD` (specific date)
+- Replies template text to admin DM only — does NOT push to group
+- If no matches on date → reply `ไม่มีแมตช์วันที่ {date}`
+- Allows admin to preview template for any date without affecting the group
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `commands.py` | Add `/setgroup` and `/sendtemplate` handlers |
+| `commands.py` | Add `/setgroup` and `/template` handlers |
 | `bot.py` | Save `LINE_GROUP_ID` to config on `/setgroup` success |
 | `config.json` | Add `LINE_GROUP_ID` field (written at runtime) |
 | `send_template.py` | New standalone scheduler script |
