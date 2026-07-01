@@ -165,8 +165,8 @@ def webhook():
                         continue
 
                     deadline = datetime.fromisoformat(
-                        match_row["deadline_ict"].replace("Z", "")
-                    ).replace(tzinfo=ICT)
+                        match_row["deadline_ict"].replace("Z", "+00:00")
+                    ).astimezone(ICT)
                     now = datetime.now(ICT)
 
                     if now > deadline:
