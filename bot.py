@@ -129,8 +129,7 @@ def webhook():
                         (today,)
                     ).fetchall()
                     msg = tmpl.build_template(rows)
-                    push(config["LINE_GROUP_ID"], msg, config)
-                    response = "✅ ส่ง template แล้ว"
+                    response = msg
                 if response and reply_token:
                     reply(reply_token, response, config)
             else:
