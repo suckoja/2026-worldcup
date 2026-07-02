@@ -3,3 +3,6 @@ venv/
 __pycache__/
 *.pyc
 worldcup.db
+worldcup.db-shm
+worldcup.db-wal
+.codegraph/
