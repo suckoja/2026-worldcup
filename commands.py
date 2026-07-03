@@ -113,6 +113,9 @@ def _help_text() -> str:
         "/seed [ชื่อ] [YYYY-MM-DD] [ทีมเหย้า] [H-A] [ทีมเยือน] — บันทึกย้อนหลัง (admin)\n"
         "/setgroup — บันทึก group ID สำหรับส่ง template (admin, ใช้ในกลุ่ม)\n"
         "/template [YYYY-MM-DD] — ดู template (admin, default: วันนี้)\n"
+        "/add_fixture [match_date] [kickoff_utc] [deadline_ict] [ทีมเหย้า] [ทีมเยือน] [round] — เพิ่มนัดใหม่ (admin)\n"
+        "/remove_fixture [ทีมเหย้า] [ทีมเยือน] [round] — ลบนัด (admin)\n"
+        "/fixtures [round] — ดูนัดที่เหลือ\n"
         "/help — แสดงคำสั่ง"
     )
 
@@ -288,6 +291,108 @@ def handle_command(
             f"{home_th} vs {away_th}: {home_score}-{away_score}\n"
             f"📊 คำนวณคะแนนเสร็จแล้ว — พิมพ์ /stand เพื่อดูตาราง"
         )
+
+    if cmd == "/add_fixture":
+        if not _is_admin(user_id, config):
+            return None
+        # /add_fixture [match_date_ict] [kickoff_utc] [deadline_ict] [home_th] [away_th] [round]
+        if len(parts) < 6 or len(parts) > 7:
+            return ("❌ รูปแบบ: /add_fixture [YYYY-MM-DD] [kickoff_utc] [deadline_ict] "
+                    "[ทีมเหย้า] [ทีมเยือน] [round]\nตัวอย่าง: /add_fixture 2026-07-07 "
+                    "2026-07-07T00:00:00Z 2026-07-06T08:00:00 อาร์เจนตินา ออสเตรเลีย 16")
+        match_date, kickoff_utc, deadline_ict, home_th, away_th = parts[1:6]
+        round_arg = parts[6] if len(parts) == 7 else "16"
+
+        if not re.match(r'^\d{4}-\d{2}-\d{2}$', match_date):
+            return f"❌ match_date ไม่ถูกต้อง '{match_date}' รูปแบบ YYYY-MM-DD"
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$', kickoff_utc):
+            return f"❌ kickoff_utc ไม่ถูกต้อง '{kickoff_utc}' รูปแบบ YYYY-MM-DDTHH:MM:SSZ"
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$', deadline_ict):
+            return f"❌ deadline_ict ไม่ถูกต้อง '{deadline_ict}' รูปแบบ YYYY-MM-DDTHH:MM:SS"
+
+        home_en = teams.get(home_th)
+        away_en = teams.get(away_th)
+        if not home_en:
+            return f"❌ ไม่พบทีม '{home_th}'"
+        if not away_en:
+            return f"❌ ไม่พบทีม '{away_th}'"
+
+        dup = conn.execute(
+            "SELECT id FROM matches WHERE home_team_en = ? AND away_team_en = ? AND round = ?",
+            (home_en, away_en, round_arg)
+        ).fetchone()
+        if dup:
+            return f"❌ นัด {home_en} vs {away_en} (round {round_arg}) มีอยู่แล้ว"
+
+        conn.execute("""
+            INSERT INTO matches
+            (match_date_ict, kickoff_utc, deadline_ict, home_team_en, away_team_en,
+             home_team_th, away_team_th, round)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (match_date, kickoff_utc, deadline_ict, home_en, away_en, home_th, away_th, round_arg))
+        conn.commit()
+
+        return (
+            f"✅ เพิ่มนัดแล้ว\n"
+            f"{home_th} vs {away_th} (round {round_arg})\n"
+            f"วันที่: {match_date}  kickoff: {kickoff_utc}"
+        )
+
+    if cmd == "/remove_fixture":
+        if not _is_admin(user_id, config):
+            return None
+        # /remove_fixture [home_th] [away_th] [round]
+        if len(parts) != 4:
+            return "❌ รูปแบบ: /remove_fixture [ทีมเหย้า] [ทีมเยือน] [round]"
+        home_th, away_th, round_arg = parts[1], parts[2], parts[3]
+
+        home_en = teams.get(home_th)
+        away_en = teams.get(away_th)
+        if not home_en:
+            return f"❌ ไม่พบทีม '{home_th}'"
+        if not away_en:
+            return f"❌ ไม่พบทีม '{away_th}'"
+
+        match_row = conn.execute(
+            "SELECT id FROM matches WHERE home_team_en = ? AND away_team_en = ? AND round = ?",
+            (home_en, away_en, round_arg)
+        ).fetchone()
+        if not match_row:
+            return f"❌ ไม่พบนัด {home_en} vs {away_en} (round {round_arg})"
+
+        pred_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM predictions WHERE match_id = ?", (match_row["id"],)
+        ).fetchone()["n"]
+        if pred_count > 0:
+            return f"❌ มีคนทายนัดนี้แล้ว ({pred_count} คน) ลบไม่ได้"
+
+        conn.execute("DELETE FROM matches WHERE id = ?", (match_row["id"],))
+        conn.commit()
+        return f"✅ ลบนัด {home_en} vs {away_en} (round {round_arg}) แล้ว"
+
+    if cmd == "/fixtures":
+        round_arg = parts[1] if len(parts) > 1 else None
+        if round_arg:
+            rows = conn.execute(
+                "SELECT home_team_th, away_team_th, home_team_en, away_team_en, "
+                "match_date_ict FROM matches WHERE home_score IS NULL AND round = ? "
+                "ORDER BY kickoff_utc",
+                (round_arg,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT home_team_th, away_team_th, home_team_en, away_team_en, "
+                "match_date_ict FROM matches WHERE home_score IS NULL "
+                "ORDER BY kickoff_utc"
+            ).fetchall()
+        if not rows:
+            return "ไม่มีนัดที่เหลือ"
+        lines = ["นัดที่เหลือ:"]
+        for r in rows:
+            home = r["home_team_th"] or r["home_team_en"]
+            away = r["away_team_th"] or r["away_team_en"]
+            lines.append(f"{home} vs {away} ({r['match_date_ict']})")
+        return "\n".join(lines)
 
     if cmd == "/setgroup":
         if not _is_admin(user_id, config):

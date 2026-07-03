@@ -38,6 +38,9 @@ def init_schema(conn: sqlite3.Connection):
             round TEXT NOT NULL DEFAULT '32'
         );
 
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_unique
+            ON matches(home_team_en, away_team_en, round);
+
         CREATE TABLE IF NOT EXISTS predictions (
             id INTEGER PRIMARY KEY,
             player_id INTEGER NOT NULL REFERENCES players(id),
