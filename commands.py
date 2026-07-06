@@ -382,17 +382,49 @@ def handle_command(
         else:
             rows = conn.execute(
                 "SELECT home_team_th, away_team_th, home_team_en, away_team_en, "
-                "match_date_ict FROM matches WHERE home_score IS NULL "
+                "match_date_ict, round FROM matches WHERE home_score IS NULL "
                 "ORDER BY kickoff_utc"
             ).fetchall()
         if not rows:
             return "ไม่มีนัดที่เหลือ"
-        lines = ["นัดที่เหลือ:"]
+
+        if round_arg:
+            lines = ["นัดที่เหลือ:"]
+            for r in rows:
+                home = r["home_team_th"] or r["home_team_en"]
+                away = r["away_team_th"] or r["away_team_en"]
+                lines.append(f"{home} vs {away} ({r['match_date_ict']})")
+            return "\n".join(lines)
+
+        round_labels = {
+            "32": "รอบ 32 ทีมสุดท้าย",
+            "16": "รอบ 16 ทีมสุดท้าย",
+            "8": "รอบ 8 ทีมสุดท้าย",
+            "4": "รอบรองชนะเลิศ",
+            "2": "รอบชิงชนะเลิศ",
+        }
+
+        def round_sort_key(round_val):
+            try:
+                return -int(round_val)
+            except ValueError:
+                return 0
+
+        rounds_seen = sorted({r["round"] for r in rows}, key=round_sort_key)
+        rows_by_round = {rnd: [] for rnd in rounds_seen}
         for r in rows:
-            home = r["home_team_th"] or r["home_team_en"]
-            away = r["away_team_th"] or r["away_team_en"]
-            lines.append(f"{home} vs {away} ({r['match_date_ict']})")
-        return "\n".join(lines)
+            rows_by_round[r["round"]].append(r)
+
+        blocks = []
+        for rnd in rounds_seen:
+            label = round_labels.get(rnd, f"รอบ {rnd}")
+            block_lines = [f"-- {label} --"]
+            for r in rows_by_round[rnd]:
+                home = r["home_team_th"] or r["home_team_en"]
+                away = r["away_team_th"] or r["away_team_en"]
+                block_lines.append(f"{home} vs {away} ({r['match_date_ict']})")
+            blocks.append("\n".join(block_lines))
+        return "\n\n".join(blocks)
 
     if cmd == "/setgroup":
         if not _is_admin(user_id, config):
