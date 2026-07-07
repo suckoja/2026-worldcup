@@ -12,20 +12,25 @@ def score_prediction(
     predicted: tuple,
     actual: tuple,
     round: str,
-    rules: dict
+    rules: dict,
+    doubled: bool = False,
 ) -> int:
     r = rules[round]
     if predicted == actual:
-        return r["exact"]
-    if _result(*predicted) == _result(*actual):
-        return r["correct"]
-    return r["wrong"]
+        pts = r["exact"]
+    elif _result(*predicted) == _result(*actual):
+        pts = r["correct"]
+    else:
+        pts = r["wrong"]
+    if doubled:
+        pts = pts * 2 if pts > 0 else -2
+    return pts
 
 
 def recalculate_all(conn: sqlite3.Connection, rules: dict):
     """Recalculate points for all predictions where match result is known."""
     rows = conn.execute("""
-        SELECT p.id, p.home_pred, p.away_pred,
+        SELECT p.id, p.home_pred, p.away_pred, p.doubled,
                m.home_score, m.away_score, m.round
         FROM predictions p
         JOIN matches m ON p.match_id = m.id
@@ -37,7 +42,8 @@ def recalculate_all(conn: sqlite3.Connection, rules: dict):
             (row["home_pred"], row["away_pred"]),
             (row["home_score"], row["away_score"]),
             row["round"],
-            rules
+            rules,
+            doubled=bool(row["doubled"]),
         )
         conn.execute("UPDATE predictions SET points = ? WHERE id = ?", (pts, row["id"]))
 
