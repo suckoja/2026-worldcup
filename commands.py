@@ -101,8 +101,9 @@ def _result_date_text(conn: sqlite3.Connection, date_str: str) -> str:
 
         if row["line_display_name"]:
             pred = f"{row['home_pred']}-{row['away_pred']}"
+            double_marker = " 🔥x2" if row["doubled"] else ""
             pts = f" ({row['points']} แต้ม)" if row["points"] is not None else ""
-            lines.append(f"  {row['line_display_name']:<22} {pred}{pts}")
+            lines.append(f"  {row['line_display_name']:<22} {pred}{double_marker}{pts}")
 
     return "\n".join(lines)
 

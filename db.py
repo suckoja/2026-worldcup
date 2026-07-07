@@ -187,7 +187,7 @@ def get_today_predictions(conn: sqlite3.Connection, date_ict: str) -> list:
         SELECT m.home_team_th, m.away_team_th, m.home_team_en, m.away_team_en,
                m.home_score, m.away_score, m.kickoff_utc,
                p.line_display_name,
-               pr.home_pred, pr.away_pred, pr.points
+               pr.home_pred, pr.away_pred, pr.points, pr.doubled
         FROM matches m
         LEFT JOIN predictions pr ON m.id = pr.match_id
         LEFT JOIN players p ON pr.player_id = p.id

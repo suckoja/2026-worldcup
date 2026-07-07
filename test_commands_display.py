@@ -47,6 +47,16 @@ def test_result_shows_double_marker():
         os.unlink(path)
 
 
+def test_result_date_shows_double_marker():
+    conn, path = _setup()
+    try:
+        text = commands._result_date_text(conn, "2026-07-08")
+        assert "🔥x2" in text
+    finally:
+        conn.close()
+        os.unlink(path)
+
+
 def test_stand_shows_flame_for_current_round():
     conn, path = _setup()
     try:
