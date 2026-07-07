@@ -110,6 +110,7 @@ def _help_text() -> str:
         "/result YYYY-MM-DD — การทายวันที่ระบุ\n"
         "/sync — ดึงผลการแข่งขันล่าสุด (admin)\n"
         "/setscore [ทีมเหย้า] [H-A] [ทีมเยือน] — ใส่ผล 90 นาที สำหรับนัดต่อเวลา/จุดโทษ (admin)\n"
+        "/double [ชื่อ] [ทีมเหย้า] [ทีมเยือน] — เปิด/ปิด double (admin, x2 ถ้าถูก, -2 ถ้าผิด)\n"
         "/seed [ชื่อ] [YYYY-MM-DD] [ทีมเหย้า] [H-A] [ทีมเยือน] — บันทึกย้อนหลัง (admin)\n"
         "/setgroup — บันทึก group ID สำหรับส่ง template (admin, ใช้ในกลุ่ม)\n"
         "/template [YYYY-MM-DD] — ดู template (admin, default: วันนี้)\n"
@@ -445,5 +446,61 @@ def handle_command(
         if not rows:
             return f"ไม่มีแมตช์วันที่ {date_arg}"
         return f"__SENDTEMPLATE__:{date_arg}"
+
+    if cmd == "/double":
+        if not _is_admin(user_id, config):
+            return None
+        if len(parts) != 4:
+            return "❌ รูปแบบ: /double [ชื่อ] [ทีมเหย้า] [ทีมเยือน]"
+        player_arg, team1_arg, team2_arg = parts[1], parts[2], parts[3]
+
+        name, candidates = db.resolve_player(player_arg, players)
+        if not name:
+            if candidates:
+                return "❌ ชื่อตรงกับหลายคน: " + ", ".join(candidates)
+            return f"❌ ไม่พบผู้เล่น '{player_arg}'"
+
+        team1_en = teams.get(team1_arg) or (team1_arg if team1_arg in teams.values() else None)
+        team2_en = teams.get(team2_arg) or (team2_arg if team2_arg in teams.values() else None)
+        if not team1_en:
+            return f"❌ ไม่พบทีม '{team1_arg}'"
+        if not team2_en:
+            return f"❌ ไม่พบทีม '{team2_arg}'"
+
+        match_row = db.get_match_by_teams(conn, team1_en, team2_en)
+        if not match_row:
+            return f"❌ ไม่พบนัด {team1_en} vs {team2_en}"
+
+        player_id = db.get_player_id(conn, name)
+        pred_row = db.get_prediction(conn, player_id, match_row["id"])
+        if not pred_row:
+            return f"❌ {name} ยังไม่ได้ทายนัดนี้ ทายก่อนถึงจะ double ได้"
+
+        deadline = datetime.fromisoformat(
+            match_row["deadline_ict"].replace("Z", "+00:00")
+        ).astimezone(ICT)
+        if datetime.now(ICT) > deadline:
+            return "❌ เลยเวลากำหนดแล้ว double ไม่ได้"
+
+        home_th = match_row["home_team_th"] or team1_en
+        away_th = match_row["away_team_th"] or team2_en
+        round_val = match_row["round"]
+
+        if pred_row["doubled"]:
+            db.set_doubled(conn, pred_row["id"], 0)
+            scoring.recalculate_all(conn, rules)
+            return f"✅ ยกเลิก double แล้ว: {name} — {home_th} vs {away_th}"
+
+        cap = rules.get(round_val, {}).get("double_cap", 0)
+        used = db.count_doubled_in_round(conn, player_id, round_val)
+        if used >= cap:
+            return f"❌ {name} ใช้ double ครบโควต้ารอบนี้แล้ว ({used}/{cap})"
+
+        db.set_doubled(conn, pred_row["id"], 1)
+        scoring.recalculate_all(conn, rules)
+        return (
+            f"🔥 เปิด double แล้ว: {name} — {home_th} vs {away_th}\n"
+            f"เหลือโควต้า double รอบนี้ {cap - used - 1}/{cap}"
+        )
 
     return None
