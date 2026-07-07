@@ -54,6 +54,14 @@ def init_schema(conn: sqlite3.Connection):
         );
     """)
     conn.commit()
+    _ensure_column(conn, "predictions", "doubled", "INTEGER NOT NULL DEFAULT 0")
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, coldef: str):
+    cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}")
+        conn.commit()
 
 
 def now_ict() -> str:
@@ -186,3 +194,47 @@ def get_today_predictions(conn: sqlite3.Connection, date_ict: str) -> list:
         WHERE m.match_date_ict = ?
         ORDER BY m.kickoff_utc, p.line_display_name
     """, (date_ict,)).fetchall()
+
+
+def get_prediction(conn: sqlite3.Connection, player_id: int, match_id: int) -> Optional[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM predictions WHERE player_id = ? AND match_id = ?",
+        (player_id, match_id)
+    ).fetchone()
+
+
+def set_doubled(conn: sqlite3.Connection, prediction_id: int, value: int):
+    conn.execute("UPDATE predictions SET doubled = ? WHERE id = ?", (value, prediction_id))
+    conn.commit()
+
+
+def count_doubled_in_round(conn: sqlite3.Connection, player_id: int, round_val: str) -> int:
+    row = conn.execute("""
+        SELECT COUNT(*) AS n FROM predictions pr
+        JOIN matches m ON pr.match_id = m.id
+        WHERE pr.player_id = ? AND pr.doubled = 1 AND m.round = ?
+    """, (player_id, round_val)).fetchone()
+    return row["n"]
+
+
+def has_doubled_in_round(conn: sqlite3.Connection, round_val: str) -> set:
+    rows = conn.execute("""
+        SELECT DISTINCT p.line_display_name
+        FROM predictions pr
+        JOIN players p ON pr.player_id = p.id
+        JOIN matches m ON pr.match_id = m.id
+        WHERE pr.doubled = 1 AND m.round = ?
+    """, (round_val,)).fetchall()
+    return {r["line_display_name"] for r in rows}
+
+
+def get_current_round(conn: sqlite3.Connection) -> Optional[str]:
+    row = conn.execute(
+        "SELECT round FROM matches WHERE home_score IS NULL ORDER BY kickoff_utc LIMIT 1"
+    ).fetchone()
+    if row:
+        return row["round"]
+    row = conn.execute(
+        "SELECT round FROM matches ORDER BY kickoff_utc DESC LIMIT 1"
+    ).fetchone()
+    return row["round"] if row else None
