@@ -20,20 +20,21 @@ PLAYERS = [{"line_display_name": "Kritsana Th.", "aliases": ["kritsana", "นา
 TEAMS = {"อาร์เจนตินา": "Argentina", "อียิปต์": "Egypt", "Argentina": "Argentina", "Egypt": "Egypt"}
 
 
-def _setup(round_val="16", deadline_passed=False):
+def _setup(round_val="16", kickoff_passed=False):
     f = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     path = f.name
     f.close()
     conn = db.get_db({"DB_PATH": path})
     db.init_schema(conn)
-    deadline = (datetime.now(ICT) - timedelta(hours=1)) if deadline_passed else (datetime.now(ICT) + timedelta(hours=1))
+    # deadline_ict always in the past — /double no longer checks it, only kickoff_utc matters
+    kickoff = (datetime.now(timezone.utc) - timedelta(hours=1)) if kickoff_passed else (datetime.now(timezone.utc) + timedelta(hours=1))
     conn.execute("""
         INSERT INTO matches
         (match_date_ict, kickoff_utc, deadline_ict, home_team_en, away_team_en,
          home_team_th, away_team_th, round)
-        VALUES ('2026-07-08', '2026-07-08T16:00:00Z', ?, 'Argentina', 'Egypt',
+        VALUES ('2026-07-08', ?, '2020-01-01T00:00:00', 'Argentina', 'Egypt',
                 'อาร์เจนตินา', 'อียิปต์', ?)
-    """, (deadline.strftime("%Y-%m-%dT%H:%M:%S"), round_val))
+    """, (kickoff.strftime("%Y-%m-%dT%H:%M:%SZ"), round_val))
     conn.commit()
     db.upsert_player(conn, "Kritsana Th.")
     player_id = db.get_player_id(conn, "Kritsana Th.")
@@ -88,13 +89,27 @@ def test_double_rejects_when_no_prediction():
         os.unlink(path)
 
 
-def test_double_rejects_after_deadline():
-    conn, path = _setup(round_val="16", deadline_passed=True)
+def test_double_rejects_after_kickoff():
+    conn, path = _setup(round_val="16", kickoff_passed=True)
     try:
         resp = commands.handle_command(
             "/double kritsana อาร์เจนตินา อียิปต์", "Uadmin", conn, CONFIG, PLAYERS, RULES, TEAMS
         )
-        assert "เลยเวลา" in resp
+        assert "เริ่มแล้ว" in resp
+    finally:
+        conn.close()
+        os.unlink(path)
+
+
+def test_double_allowed_after_prediction_deadline_but_before_kickoff():
+    # deadline_ict is always in the past in _setup; this confirms /double
+    # still works as long as kickoff hasn't happened yet.
+    conn, path = _setup(round_val="16", kickoff_passed=False)
+    try:
+        resp = commands.handle_command(
+            "/double kritsana อาร์เจนตินา อียิปต์", "Uadmin", conn, CONFIG, PLAYERS, RULES, TEAMS
+        )
+        assert "🔥" in resp
     finally:
         conn.close()
         os.unlink(path)

@@ -82,7 +82,7 @@ Admin-only (same pattern as `/seed`, `/setscore`). Non-admin sender → silently
 1. Resolve player (existing alias lookup from `players.json`)
 2. Resolve match by team pair, order-insensitive (existing team lookup from `teams.json`)
 3. No prediction exists yet for that player+match → reject: `ทายก่อนถึงจะ double ได้`
-4. Past deadline (`now_ict >= match.deadline_ict`, same deadline as normal predictions) → reject: `เลยเวลากำหนดแล้ว`
+4. Past kickoff (`now_utc >= match.kickoff_utc`) → reject: `นัดเริ่มแล้ว double ไม่ได้`. (Amended 2026-07-07: originally spec'd as the same cutoff as the prediction deadline (15:00 ICT the day before), but that caused real activation requests to be rejected when the admin ran the command a few minutes late — the underlying prediction is already locked at that deadline, so allowing the double flag itself up to kickoff leaks no new score information, only removes admin-lag friction.)
 5. Already `doubled=1` on that prediction → **toggle off** (set `doubled=0`, refunds quota), reply confirmation
 6. Else check quota: count of `doubled=1` predictions for this player where `match.round` equals this match's round, compared to `double_cap` for that round
    - At cap → reject: `ใช้ double ครบโควต้ารอบนี้แล้ว (n/n)`
@@ -140,5 +140,5 @@ Add one line describing `/double` (admin-only, usage syntax, current round's rem
 
 - `test_scoring.py`: add cases — doubled exact, doubled correct-only, doubled wrong (must be exactly -2, not 0)
 - Quota enforcement: reject at cap, toggle-off refunds quota correctly
-- Deadline: `/double` rejected after match deadline same as prediction parser
+- Kickoff cutoff: `/double` rejected once `now_utc >= match.kickoff_utc`, allowed any time before (including after the prediction deadline has passed)
 - `/stand` 🔥 marker: shows for round with any doubled pick (pending or resolved), absent once round changes

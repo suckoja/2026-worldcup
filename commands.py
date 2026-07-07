@@ -488,11 +488,11 @@ def handle_command(
         if not pred_row:
             return f"❌ {name} ยังไม่ได้ทายนัดนี้ ทายก่อนถึงจะ double ได้"
 
-        deadline = datetime.fromisoformat(
-            match_row["deadline_ict"].replace("Z", "+00:00")
-        ).astimezone(ICT)
-        if datetime.now(ICT) > deadline:
-            return "❌ เลยเวลากำหนดแล้ว double ไม่ได้"
+        kickoff = datetime.fromisoformat(
+            match_row["kickoff_utc"].replace("Z", "+00:00")
+        )
+        if datetime.now(timezone.utc) > kickoff:
+            return "❌ นัดเริ่มแล้ว double ไม่ได้"
 
         home_th = match_row["home_team_th"] or team1_en
         away_th = match_row["away_team_th"] or team2_en
