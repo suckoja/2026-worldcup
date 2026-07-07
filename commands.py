@@ -19,6 +19,8 @@ def _is_admin(user_id: str, config: dict) -> bool:
 
 def _standings_text(conn: sqlite3.Connection) -> str:
     rows = db.get_standings(conn)
+    current_round = db.get_current_round(conn)
+    doubled_names = db.has_doubled_in_round(conn, current_round) if current_round else set()
     today = datetime.now(ICT).strftime("%d/%m/%Y")
     lines = [f"🏆 ตารางคะแนน World Cup 2026", f"(อัพเดท: {today})", ""]
     rank = 1
@@ -29,7 +31,11 @@ def _standings_text(conn: sqlite3.Connection) -> str:
             rank = i + 1
             prev_pts = pts
         star = " ⭐" if pts > 0 and rank == 1 else ""
-        lines.append(f"{rank:2}. {row['line_display_name']:<22} {pts} แต้ม{star}")
+        flame = " 🔥" if row["line_display_name"] in doubled_names else ""
+        lines.append(f"{rank:2}. {row['line_display_name']:<22} {pts} แต้ม{star}{flame}")
+    if doubled_names:
+        lines.append("")
+        lines.append("🔥 = ใช้ double ในรอบนี้แล้ว")
     return "\n".join(lines)
 
 
@@ -52,12 +58,17 @@ def _result_player_text(conn: sqlite3.Connection, player_id: int, display_name: 
         home_th = row["home_team_th"] or row["home_team_en"]
         away_th = row["away_team_th"] or row["away_team_en"]
         pred = f"{row['home_pred']}-{row['away_pred']}"
+        double_marker = " 🔥x2" if row["doubled"] else ""
         actual = (f"{row['home_score']}-{row['away_score']}"
                   if row["home_score"] is not None else "⏳")
         pts = row["points"]
-        pts_str = f"✅ {pts} แต้ม" if pts is not None else "—"
+        if pts is not None:
+            check = "✅" if pts >= 0 else "❌"
+            pts_str = f"{check} {pts} แต้ม"
+        else:
+            pts_str = "—"
         lines.append(f"{home_th} vs {away_th}")
-        lines.append(f"  ทาย: {pred}  |  จริง: {actual}  |  {pts_str}")
+        lines.append(f"  ทาย: {pred}{double_marker}  |  จริง: {actual}  |  {pts_str}")
 
         if pts is not None:
             total_pts += pts

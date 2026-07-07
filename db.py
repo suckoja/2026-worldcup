@@ -174,7 +174,7 @@ def get_player_history(conn: sqlite3.Connection, player_id: int) -> list:
         SELECT m.match_date_ict, m.home_team_th, m.away_team_th,
                m.home_team_en, m.away_team_en,
                m.home_score, m.away_score,
-               pr.home_pred, pr.away_pred, pr.points
+               pr.home_pred, pr.away_pred, pr.points, pr.doubled
         FROM predictions pr
         JOIN matches m ON pr.match_id = m.id
         WHERE pr.player_id = ?
