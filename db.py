@@ -208,23 +208,29 @@ def set_doubled(conn: sqlite3.Connection, prediction_id: int, value: int):
     conn.commit()
 
 
-def count_doubled_in_round(conn: sqlite3.Connection, player_id: int, round_val: str) -> int:
-    row = conn.execute("""
+def count_doubled_in_round(conn: sqlite3.Connection, player_id: int, round_vals) -> int:
+    if isinstance(round_vals, str):
+        round_vals = [round_vals]
+    placeholders = ",".join("?" for _ in round_vals)
+    row = conn.execute(f"""
         SELECT COUNT(*) AS n FROM predictions pr
         JOIN matches m ON pr.match_id = m.id
-        WHERE pr.player_id = ? AND pr.doubled = 1 AND m.round = ?
-    """, (player_id, round_val)).fetchone()
+        WHERE pr.player_id = ? AND pr.doubled = 1 AND m.round IN ({placeholders})
+    """, (player_id, *round_vals)).fetchone()
     return row["n"]
 
 
-def has_doubled_in_round(conn: sqlite3.Connection, round_val: str) -> set:
-    rows = conn.execute("""
+def has_doubled_in_round(conn: sqlite3.Connection, round_vals) -> set:
+    if isinstance(round_vals, str):
+        round_vals = [round_vals]
+    placeholders = ",".join("?" for _ in round_vals)
+    rows = conn.execute(f"""
         SELECT DISTINCT p.line_display_name
         FROM predictions pr
         JOIN players p ON pr.player_id = p.id
         JOIN matches m ON pr.match_id = m.id
-        WHERE pr.doubled = 1 AND m.round = ?
-    """, (round_val,)).fetchall()
+        WHERE pr.doubled = 1 AND m.round IN ({placeholders})
+    """, round_vals).fetchall()
     return {r["line_display_name"] for r in rows}
 
 

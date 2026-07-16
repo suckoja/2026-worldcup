@@ -12,6 +12,17 @@ import template as tmpl
 
 ICT = timezone(timedelta(hours=7))
 
+# Semifinal, third-place, and final share one combined double budget.
+DOUBLE_GROUPS = {
+    "4": ["4", "third_place", "final"],
+    "third_place": ["4", "third_place", "final"],
+    "final": ["4", "third_place", "final"],
+}
+
+
+def _double_group(round_val: str) -> list:
+    return DOUBLE_GROUPS.get(round_val, [round_val])
+
 
 def _is_admin(user_id: str, config: dict) -> bool:
     return user_id == config.get("ADMIN_LINE_USER_ID", "")
@@ -20,7 +31,7 @@ def _is_admin(user_id: str, config: dict) -> bool:
 def _standings_text(conn: sqlite3.Connection) -> str:
     rows = db.get_standings(conn)
     current_round = db.get_current_round(conn)
-    doubled_names = db.has_doubled_in_round(conn, current_round) if current_round else set()
+    doubled_names = db.has_doubled_in_round(conn, _double_group(current_round)) if current_round else set()
     today = datetime.now(ICT).strftime("%d/%m/%Y")
     lines = [f"🏆 ตารางคะแนน World Cup 2026", f"(อัพเดท: {today})", ""]
     rank = 1
@@ -505,8 +516,9 @@ def handle_command(
             scoring.recalculate_all(conn, rules)
             return f"✅ ยกเลิก double แล้ว: {name} — {home_th} vs {away_th}"
 
-        cap = rules.get(round_val, {}).get("double_cap", 0)
-        used = db.count_doubled_in_round(conn, player_id, round_val)
+        group = _double_group(round_val)
+        cap = max(rules.get(r, {}).get("double_cap", 0) for r in group)
+        used = db.count_doubled_in_round(conn, player_id, group)
         if used >= cap:
             return f"❌ {name} ใช้ double ครบโควต้ารอบนี้แล้ว ({used}/{cap})"
 
