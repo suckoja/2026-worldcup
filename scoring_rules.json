@@ -3,5 +3,6 @@
   "16":    {"exact": 4, "correct": 2, "wrong": 0, "double_cap": 2},
   "8":     {"exact": 6, "correct": 3, "wrong": 0, "double_cap": 1},
   "4":     {"exact": 8, "correct": 4, "wrong": 0, "double_cap": 1},
-  "final": {"exact": 8, "correct": 4, "wrong": 0, "double_cap": 0}
+  "final": {"exact": 8, "correct": 4, "wrong": 0, "double_cap": 0},
+  "third_place": {"exact": 8, "correct": 4, "wrong": 0, "double_cap": 0}
 }

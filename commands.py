@@ -414,14 +414,16 @@ def handle_command(
             "16": "รอบ 16 ทีมสุดท้าย",
             "8": "รอบ 8 ทีมสุดท้าย",
             "4": "รอบรองชนะเลิศ",
-            "2": "รอบชิงชนะเลิศ",
+            "final": "รอบชิงชนะเลิศ",
+            "third_place": "รอบชิงอันดับ 3",
         }
 
         def round_sort_key(round_val):
             try:
                 return -int(round_val)
             except ValueError:
-                return 0
+                order = {"third_place": -5, "final": -6}
+                return order.get(round_val, 0)
 
         rounds_seen = sorted({r["round"] for r in rows}, key=round_sort_key)
         rows_by_round = {rnd: [] for rnd in rounds_seen}
